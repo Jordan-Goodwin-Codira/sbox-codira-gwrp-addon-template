@@ -1,0 +1,33 @@
+@using Sandbox.UI
+@inherits SWRP.UI.AddonHudPanel
+@namespace MyOrg.Flares
+
+@*
+	A panel on the HUD. It goes on the gamemode's addon layer, which hides
+	with the rest of the HUD and scales with it. The classes come from that
+	layer's stylesheet (anchor-*, hud-plate, hud-title, hud-value, hud-pill,
+	good/warn/bad), since an addon's own stylesheet can't reach the gamemode's
+	variables; CUSTOM_ASSETS.md lists them.
+*@
+
+<root class="anchor-top-right hud-plate">
+	<div class="hud-title">Flares</div>
+	<div class="hud-value">@Burning burning</div>
+	@if ( Gliding )
+	{
+		<div class="hud-pill good">Gliding</div>
+	}
+</root>
+
+@code
+{
+	int Burning => EntityService.All( Game.ActiveScene ).Count( e => e.KindId == FlareKind.KindId );
+
+	bool Gliding => Pawn.Local.IsValid() && Pawn.Local.Components.Get<GlidePack>() is { Gliding: true };
+
+	/// <summary>Read every frame: shown while gliding, or while the server wants the count and a flare burns.</summary>
+	public override bool IsVisible( Pawn local ) =>
+		Gliding || (AddonSettingsStore.Get<FlareSettings>()?.ShowCount ?? true) && Burning > 0;
+
+	protected override int BuildHash() => HashCode.Combine( Burning, Gliding );
+}

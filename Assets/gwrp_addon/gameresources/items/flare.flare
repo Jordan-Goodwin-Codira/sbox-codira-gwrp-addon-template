@@ -1,0 +1,13 @@
+{
+  "Id": "flare",
+  "DisplayName": "Flare",
+  "Description": "A hand flare. Use it to light one where you aim.",
+  "ModelPath": "models/dev/sphere.vmdl",
+  "ModelScale": 0.2,
+  "Weight": 0.3,
+  "MaxStack": 5,
+  "UseCooldownSeconds": 1,
+  "ConsumeOnUse": true,
+  "BurnSeconds": 60,
+  "ThrowRange": 400
+}

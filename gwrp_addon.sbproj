@@ -1,0 +1,21 @@
+{
+  "Title": "GWRP - My Addon",
+  "Type": "addon",
+  "Org": "local",
+  "Ident": "gwrp_addon",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "codira.starwarsrp",
+    "StartupScene": "scenes/game.scene"
+  }
+}

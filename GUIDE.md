@@ -672,9 +672,14 @@ spawns with your drive instead of the gamemode's hover or flight. The drive
 runs on the host: `ReadDriver()` gives the driver's keys and aim,
 `UpdateIgnition`, `SetThrottle`, `Expect` and `CheckCrash` are the helpers
 the gamemode's own drives use, and `Vehicle` and `Body` are the vehicle and
-its rigidbody. It derives from a gamemode component, so it can't have
-`[Sync]` properties of its own: put synced state on a separate component.
+its rigidbody. Your drive derives from a gamemode component, so it can't
+have `[Sync]` properties of its own: put synced state on a separate component.
 If your addon is taken off, those vehicles go back to the gamemode's drive.
+
+`VehicleDrive.KeyDown( rider, action )` reads any rider's key on the host.
+The vehicle's `VehicleGuns` gives each gun's `OperatorOf` (its driver or
+gunner), `AimOf` (how far it has turned and tipped), `MuzzlesNow` and
+`ShotDirection`.
 
 ## Rules: changing what the gamemode decides
 

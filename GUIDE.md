@@ -13,7 +13,8 @@ script that publishes it. What follows is the reference for each
 surface, then the hooks into the rest of the game: what happens to players,
 moving, posing and animating them, badges, saved data, credits, chat, the
 map, NPCs and vehicles, and the rules, behaviours, channels, voice, camera
-and HUD hooks that let an addon change what the gamemode decides.
+and HUD hooks that let an addon change what the gamemode decides. Last, the
+sounds, fire, smoke and explosions you can use without shipping your own.
 
 ## Setup
 
@@ -859,6 +860,151 @@ An `AddonMenuTab` with `Host => AddonMenuHost.Admin` is a view in the admin
 panel (K): under `AdminGroup` ("players", "moderation", "server", or its
 own "addons" tab), for admins with its `Permission`. As with every panel,
 the host must check whatever the panel asks it to do.
+
+## Sounds and effects you can use
+
+Your addon can play the gamemode's sounds and draw its fire, smoke and
+explosions without shipping files of its own. Everything listed here is
+always there: the gamemode's files come with the gamemode, and the rest is
+part of s&box. A weapon package's sounds are there only when the server
+mounts that package, so ship your own copy of any you need.
+
+Sounds and effects play on the machine that calls them, for that player
+only. So make them on every machine: from a component on a networked object
+(one of your entities, or a part on a player), which runs everywhere, when
+its synced state says so. A dedicated server has no screen or speakers, so
+skip them there:
+
+```csharp
+public sealed class Barrel : Component
+{
+	[Sync( SyncFlags.FromHost )] public int Blasts { get; set; }   // the host adds one per blast
+	int _shown = -1;
+
+	protected override void OnUpdate()
+	{
+		if ( _shown < 0 ) _shown = Blasts;   // just arrived: don't replay old ones
+		if ( Blasts == _shown ) return;
+		_shown = Blasts;
+		if ( Application.IsDedicatedServer ) return;
+
+		Explosion.Spawn( WorldPosition, 0.6f, 40f, 0f, pieces: 0 );
+		Explosion.Scorch( WorldPosition, 220f );
+		GunAudio.Blast( "", WorldPosition );
+	}
+}
+```
+
+### Sounds
+
+`"sounds/weapons/explosion.sound".PlayAt( position )` plays one at a spot;
+`PlayOn( go, position )` plays one that moves with an object. Both give back
+the engine's `SoundHandle`, to change its `Volume` or `Stop()` it.
+`GunAudio.Blast( sound, position )` plays a bang that players far away hear
+too (an empty sound is the gamemode's explosion).
+
+The gamemode's:
+
+| Path | What it is |
+|---|---|
+| `sounds/weapons/explosion.sound` | An explosion (`Explosion.DefaultSound`) |
+| `sounds/weapons/rocket_flight.sound` | A rocket in flight |
+| `sounds/weapons/bolt_flyby.sound` | A blaster bolt passing close |
+| `sounds/weapons/bolt_hit_body.sound` | A bolt hitting a body (`GunAudio.BodyHit`) |
+| `sounds/weapons/dry_fire.sound` | The trigger on an empty gun (`GunAudio.DryFire`) |
+| `sounds/weapons/detonator_arm.sound`, `detonator_beep.sound`, `detonator_bounce.sound` | A thermal detonator armed, beeping, bouncing |
+| `sounds/weapons/shell_in.sound`, `shell_rack.sound` | A shell loaded, a pump racked |
+| `sounds/physgun/physgun_grab.sound`, `physgun_release.sound`, `physgun_freeze.sound`, `physgun_unfreeze.sound`, `physgun_hum.sound` | The physgun |
+| `sounds/toolgun/toolgun_spawn.sound`, `toolgun_remove.sound` | The toolgun placing and removing |
+| `sounds/radio/radio_on.sound`, `radio_off.sound` | The radio clicking on and off |
+| `sounds/ui/notification.sound` | A notification |
+
+s&box's:
+
+| Path | What it is |
+|---|---|
+| `sounds/effects/fire/fire_burn_loop01.sound` | A fire crackling, 28 seconds; play it again when it ends (`VehicleFx.FireSound`) |
+| `sounds/effects/explosion/explosion_small.sound` | A small explosion |
+| `sounds/Impacts/Bullets/impact-bullet-<surface>.sound` | A bullet hitting `cloth`, `concrete`, `dirt`, `flesh`, `foliage`, `generic`, `glass`, `metal`, `plaster`, `plastic`, `sand`, `snow`, `water` or `wood` |
+| `sounds/Impacts/Melee/impact-melee-<surface>.sound` | A melee hit on `cloth`, `concrete`, `dirt`, `flesh`, `glass`, `grass`, `metal`, `sand`, `snow` or `wood` |
+| `sounds/footsteps/footstep-<surface>.sound` | A footstep on `concrete`, `dirt`, `glass`, `grass`, `metal` or `wood`; `concrete` and `wood` also have `-jump` and `-land` |
+| `sounds/water/water_splash_medium.sound`, `water_bullet_impact.sound` | A splash, a shot into water |
+| `sounds/kenney/ui/ui.button.press.sound` | UI clicks; the same folder has `ui.button.over`, `ui.button.deny`, `ui.navigate.forward`, `ui.navigate.back`, `ui.navigate.deny`, `ui.popup.message.open`, `ui.popup.message.close`, `ui.drag.start`, `ui.drag.stop` |
+
+### Explosions, flashes and sparks
+
+Ready-made, each one call:
+
+| Call | What it draws |
+|---|---|
+| `Explosion.Spawn( centre, size, span, height )` | A full explosion: a white-hot flash, fireballs rolling into smoke, a rising cloud, sparks, burning pieces thrown out (`pieces`), a light and a shake for cameras close by. `size` 1 is a small vehicle, up to 4.5; a thermal detonator is about 0.6. `span` and `height` are how wide and tall what blew is. No sound: add `GunAudio.Blast` |
+| `Explosion.Scorch( centre, radius )` | A burnt mark on the ground (or on the surface facing `normal`), which fades |
+| `ImpactBurst.SpawnBlast( at, tint )` | A smaller blast: a flash, a light and sparks |
+| `ImpactBurst.SpawnGlow( at, tint, size )` | A soft glow that pops and fades (the toolgun's) |
+| `ImpactBurst.SpawnImpact( at, normal, tint )` | A hit spark on a surface |
+| `ImpactBurst.SpawnMuzzle( at, forward, tint )` | A flash at a barrel |
+| `Spark.Spawn( at, velocity, tint )` | One spark that flies and falls |
+
+`Explosion.Spawn` draws about half as much for players who set Effects to
+Low.
+
+### Fire and smoke
+
+`VehicleFx` names s&box's animated fire and smoke images, 64 frames each:
+`Fireball` (rolling into dark smoke), `Flash` (a white-hot burst),
+`Flames` (a loop), `SmokeCloud` and `SmokeBillow` (darker), plus `Ember`,
+a still glowing dot. s&box has more in the same folders,
+`textures/particles/flame/` and `textures/particles/smoke/`.
+`VehicleFx.Particles( go, texture, max, additive )` makes a particle effect
+drawn with one; `VehicleFx.Range`, `Curve` and `InDisc` fill in its values;
+a `VehicleFx.Stream` feeds it a set number a second from a point that can
+move. `VehicleFx.Object` makes an object for it that isn't networked or
+saved, and `VehicleFx.Low` says the player chose fewer particles.
+
+A steady fire, as on a burning wreck:
+
+```csharp
+public sealed class Campfire : Component
+{
+	VehicleFx.Stream _flames;
+	SoundHandle _crackle;
+
+	protected override void OnStart()
+	{
+		if ( Application.IsDedicatedServer ) return;
+		var go = VehicleFx.Object( "Campfire flames", WorldPosition );
+		var fx = VehicleFx.Particles( go, VehicleFx.Flames, 24, additive: false, loopsPerSecond: 0.45f );
+		fx.Lifetime = VehicleFx.Range( 0.9f, 1.5f );
+		fx.Tint = new Color( 1f, 0.85f, 0.7f );
+		fx.Brightness = 1.7f;
+		fx.Alpha = VehicleFx.Curve( (0f, 0f), (0.15f, 1f), (0.7f, 0.85f), (1f, 0f) );
+		fx.Scale = VehicleFx.CurveRange( [(0f, 75f), (0.3f, 115f), (1f, 90f)], [(0f, 95f), (0.3f, 150f), (1f, 115f)] );
+		fx.ApplyRotation = false;
+		_flames = new VehicleFx.Stream( fx ) { Spread = 12f };
+		_flames.StandOnPoint( VehicleFx.FlameFoot );   // the flames grow up from the point
+	}
+
+	protected override void OnUpdate()
+	{
+		if ( _flames is null ) return;
+		_flames.Feed( 5f, WorldPosition );   // flames a second
+		if ( _crackle is null || _crackle.IsStopped || _crackle.Finished )
+			_crackle = VehicleFx.FireSound.PlayOn( GameObject, WorldPosition );
+	}
+
+	protected override void OnDestroy()
+	{
+		_crackle?.Stop();
+		_flames?.Object.Destroy();
+	}
+}
+```
+
+A one-off puff is the same effect fed by hand: `fx.Emit( position, 0f )`
+for each particle, with its own `Velocity`, on an object that removes
+itself (`go.Components.Create<AutoDestroy>().Lifetime = 5f`). A
+`FadingLight` (`Radius`, `Peak`, `Seconds`) adds a light that flares and
+fades.
 
 ## Running and testing
 

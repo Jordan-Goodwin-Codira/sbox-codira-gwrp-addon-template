@@ -628,6 +628,44 @@ them. Your own code spawns one with `EntityService.Spawn( kind, new
 EntitySpawn { User = user, Position = at }, out error )`, an item's `Use`
 say, and removes one with `EntityService.Remove( go )`.
 
+### Options: setting one up before it's placed
+
+A kind with options lets the admin set it up in the spawn menu before
+placing it: picking it in the Entities list shows your own panel under its
+details, and every one they place (toolgun left click, Place at crosshair)
+gets those options. Use on a placed one with the toolgun's Entities mode
+opens the spawn menu on that one: your panel again, with Save, and your
+buttons for it.
+
+```csharp
+public override bool HasOptions => true;
+public override JsonObject DefaultOptions() => new() { ["seconds"] = 60 };
+public override Panel CreateOptions( EntityOptionsEditor editor ) => new FlareOptions { Editor = editor };
+public override string Summary( JsonObject options ) => $"burns {options["seconds"]} s";
+
+public override GameObject Spawn( EntitySpawn spawn, out string error )
+{
+	var seconds = spawn.Options?["seconds"]?.GetValue<int>() ?? 60;   // null when the map's save lays one back in
+	…
+}
+
+public override JsonObject ReadOptions( GameObject go ) => new() { ["seconds"] = go.Components.Get<Flare>().SecondsLeft };
+public override void ApplyOptions( GameObject go, JsonObject options ) => go.Components.Get<Flare>().Light( (int)options["seconds"] );
+public override IEnumerable<EntityAction> Actions( GameObject go ) => new[] { new EntityAction( "out", "Put it out", Danger: true ) };
+public override string RunAction( GameObject go, string id, Pawn user ) { EntityService.Remove( go ); return "Flare put out."; }
+```
+
+The panel edits `editor.Json`: read it when you build, and again whenever
+`editor.Version` changes (Discard, or the placed one changed), and set it
+after every change. The gamemode does the rest: it keeps the admin's options
+for new ones on their machine and on the host, sends a placed one's when
+they press Save (`ApplyOptions`, on the host, permission checked, in the
+audit log), runs your buttons (`RunAction`, host, what it returns is shown
+to the admin), and adds Remove and Back to new ones. `ReadOptions` and
+`Actions` are read on the admin's game, so build them from synced state.
+`Summary` is the toolgun HUD's line for what a click places. None of it
+needs network calls of your own.
+
 A component implementing `IInteractable` makes any object usable with the
 Use key: `InteractRange`, `Prompt( looker )` (what the prompt says to this
 player; null for nothing to do, read on every player's game, so from synced

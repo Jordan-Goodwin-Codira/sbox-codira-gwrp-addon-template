@@ -336,6 +336,8 @@ puts away what's in hand meanwhile: not shown, not held, can't attack.
 per player), applied after the gamemode's own every frame on every machine,
 until you clear it. All of these are host calls and synced.
 
+To hold a player still for a while (a stun), `pawn.Effects.ApplyRestraint( seconds, notice )` on the host: they can't move, fight or use items, but can look about, and are told `notice` (empty for nothing). A longer hold already on them (cuffs, an admin) is yours to leave be: check `Effects.IsRestrained` and `Effects.RestrainedUntil` first.
+
 ### Your own animation
 
 For anything else, animate the body yourself: a player part implementing
@@ -802,7 +804,9 @@ Damage, DurationSeconds), `Origin`, `Forward`, `Targets()` and
 entry (`Spec.Strength`, `Spec.Seconds`). `WeaponShot` has the shooter, the
 weapon, the aim, the muzzle, `Trace( range )` and `Damage( health, amount )`;
 `WeaponBehaviour` also hears `OnHit` (every hit of the weapon, any kind) and,
-on every machine, `OnEquipped`, `OnHolstered` and `OnHeldUpdate`. If your
+on every machine, `OnEquipped`, `OnHolstered` and `OnHeldUpdate`; with
+`DrawsOwnImpacts => true` the gamemode leaves out its own hit sparks where
+the weapon lands, for a weapon that draws its own. If your
 addon is taken off, those powers do nothing, the effects are skipped and
 the weapons fire as usual.
 

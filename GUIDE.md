@@ -272,6 +272,41 @@ the player asks every frame, so read synced state. `viewer` is the local
 player, so a badge can show only to some (a regiment's own medics, say). At
 most four show; a colour too dark for the plates is lifted.
 
+## Gear the player wears
+
+Something worn and worked with a key (a flashlight on the chest, goggles, a
+jetpack) is gear: mark a player part `IPawnGear` and the gamemode's Gear key
+(N unless the player changed it on s&box's Key binds page) works it.
+
+```csharp
+public sealed class Goggles : Component, IPawnAddon, IPawnGear
+{
+	[Sync( SyncFlags.FromHost )] public bool On { get; set; }
+
+	public string GearId => "goggles.nightvision";
+	public string GearName => "Night vision";
+	public bool IsEquipped => this.GetPawn()?.Inventory.CountOf( "goggles" ) > 0;
+	public string GearStatus => On ? "On" : "Off";
+	public bool GearActive => On;
+	public string GearAction => On ? "switch them off" : "switch them on";
+	public string GearIcon => "visibility";
+
+	public void UseGear() => On = !On;   // host
+}
+```
+
+While a piece is equipped, the HUD shows it top left, under the radio: the
+key, its name and `GearStatus`, lit while `GearActive`, and a line saying
+what the key does ("Press N to switch them on"). A press of the key asks the
+host, which calls `UseGear` if the piece is still equipped and the player may
+use things (`PawnAction.UseItems`: not restrained, frozen or dead), so change
+synced state there. With more than one piece equipped, the HUD lists them
+all, a tap works the chosen one, and holding the key opens a wheel to choose
+(`GearIcon` is its Material Icons name there). `IsEquipped` and the HUD's
+members are asked often on every machine: read synced state, keep them
+cheap. `PawnGears.Equipped( pawn )` lists a player's equipped gear, any
+addon's.
+
 ## Using other players
 
 ```csharp
@@ -376,6 +411,33 @@ out yourself (`PawnAnimation.Blend` helps), and drive it all from synced
 state, so every machine draws the same. `HoldsHands` doesn't stop attacks;
 pair it with an `IActionBlocker`. The handcuffs addon holds cuffed players'
 hands behind their back this way.
+
+To draw a body of your own in a player's place (a ragdoll when they're
+knocked down), add `IBodyStandIn` to the part: say so with `HidesBody` and
+name the body with `BodyStandIn`. It works the same on an NPC part (see
+NPCs and vehicles).
+
+```csharp
+public sealed class KnockdownPart : Component, IPawnAddon, IBodyStandIn
+{
+	[Sync( SyncFlags.FromHost )] public GameObject Ragdoll { get; set; }   // from Ragdolls.Spawn, on the host
+
+	public bool HidesBody => Ragdoll.IsValid();
+	public SkinnedModelRenderer BodyStandIn => Ragdoll.IsValid() ? Ragdoll.Components.Get<SkinnedModelRenderer>() : null;
+}
+```
+
+While a part `HidesBody`, the body and what's in hand aren't drawn on any
+machine, a player's hands are held, nobody bumps into them (their capsule
+passes through players and NPCs, as a downed player's does), and nobody sees
+a nameplate over them. Their capsule stays where it is, so move it to your
+body when you're done (`pawn.Teleport` or `npc.Teleport`, on the host)
+before you stop hiding it. If they die while it's hidden, their death ragdoll
+starts from `BodyStandIn`, where it lies and in its pose; take yours away
+then (`IPawnEvents.OnDied` on a player, `npc.IsDead` on an NPC).
+`Ragdolls.Spawn( gameObject, name )` makes a networked ragdoll in the body's
+pose (host only). The GWRP - Taser addon knocks players and NPCs down this
+way.
 
 ## Saving data about players
 
@@ -706,6 +768,13 @@ NPC orders are `Hold`, `Follow` (whoever you pass as the last argument),
 `Patrol`, `Wander` and `GoTo`; `IServerEvents` hears NPCs and vehicles
 spawn and die, and players get in and out.
 
+A component marked `INpcAddon` is put on every NPC as it spawns, before the
+network spawn, as `IPawnAddon` parts are on players, so its `[Sync]` state
+reaches everyone. `this.GetNpc()` gives a part its NPC. The host runs NPCs:
+change them there (`npc.Teleport`, `npc.Motor.Crouch( true )`). A restrained
+NPC (`npc.Effects.ApplyRestraint( seconds )`) stands where it is and
+doesn't move, aim or fire until it's let go.
+
 A new way of moving a vehicle is a class deriving from `VehicleDrive`
 (give it a `[Title]`). Once your addon is mounted, the Server Owner panel's
 vehicle types get a **Drive** choice listing it; a vehicle type set to it
@@ -806,7 +875,11 @@ weapon, the aim, the muzzle, `Trace( range )` and `Damage( health, amount )`;
 `WeaponBehaviour` also hears `OnHit` (every hit of the weapon, any kind) and,
 on every machine, `OnEquipped`, `OnHolstered` and `OnHeldUpdate`; with
 `DrawsOwnImpacts => true` the gamemode leaves out its own hit sparks where
-the weapon lands, for a weapon that draws its own. If your
+the weapon lands, for a weapon that draws its own. `CanFire( shot, out
+reason )` can hold a shot before it goes: return false and nothing fires, no
+ammo is spent, the trigger clicks and the player is told `reason` (the
+taser won't fire at someone who can't be tased yet). It's asked on the
+shooter's machine and again on the host, so read synced state. If your
 addon is taken off, those powers do nothing, the effects are skipped and
 the weapons fire as usual.
 

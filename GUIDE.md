@@ -955,7 +955,55 @@ the first answer that isn't `Default`.
 A part with `IPawnCameraModifier` changes its player's view every frame after
 the gamemode places the camera: `view.Position`, `view.Rotation`,
 `view.FieldOfView`, and `view.Camera` for anything else (cutscenes, a
-turret sight, a shake). Aiming still goes from the player's eyes.
+turret sight, a shake), in either view. Aiming still goes from the player's eyes.
+
+### First person
+
+Players see through their character's eyes or over the shoulder (the Y
+key, or the server's rule). `pawn.Camera.IsFirstPerson` says which on the
+player's own game, and a camera part's `view.FirstPerson` says whether the
+camera is at the eyes this frame. In first person the player's head is
+hidden on their own screen, and what's in their hands is drawn in view on
+its own; everyone else sees the body as always, so nothing you do on the
+body changes.
+
+- **Asking for a view:** a part with `ICameraModeRule` asks for one while
+  its `View` says so: `ViewRequest.FirstPerson` (a turret's sight,
+  binoculars), `ViewRequest.ThirdPerson` (a cutscene) or `ViewRequest.None`.
+  It goes before the player's own choice and the server's rule, and the
+  player can't switch meanwhile; when two parts disagree, third person
+  wins. Asked every frame on the player's own game.
+- **Seen from outside anyway:** a player who's dead, emoting, seated,
+  customizing, looking round their character, or lying in a body of yours
+  (`IBodyStandIn`) is seen over the shoulder whatever they chose, and is
+  back in first person after.
+- **Hands:** while a part `HoldsHands`, nothing is drawn in view in their
+  hands, and they see their own arms wherever your pose puts them (cuffed
+  hands behind the back are out of sight).
+- **Lights you put on a player:** in first person their arms and gun in
+  view aren't where the body holds them, so a light near the body throws
+  the body's shadow into their view. Turn its shadows off on their own
+  screen while `pawn.Camera.FirstPersonAmount >= 0.5f`; everyone else
+  keeps them.
+
+### Sights on a weapon you ship
+
+Aiming down the sights raises the gun to the eye, in first person and as
+everyone sees it, and iron sights are read from the model's top. For a
+sight its shape can't show, set it in the `.weapon` under **Sight**, in the
+model's own space (like the grip points): **Has Sight**; **Sight Point**,
+the point the eye looks through (the middle of a scope's back end, a
+sight's window, a ring's hole); **Sight Lens Radius** in inches for a lens
+(the zoomed view is shown on its glass) with **Sight Lens Shape** (Flat,
+Curved or Round), **Sight Lens Fill** (below 1 keeps a rim) and **Sight Dot
+Only** (a red dot, no cross); or **Sight Over Top** for a gun with no
+sights, aimed over its top with the crosshair kept. A weapon whose ADS
+field of view is 20° or less shows a full-screen scope instead. **First
+Person Support Point** and **First Person Thumb Point** (under Grip Points)
+move the other hand in first person where the `secondhand` point is no
+place for it.
+
+### The HUD
 
 A part with `IHudRules` hides parts of the gamemode's own HUD on its
 player's screen while `Hides( element )` says so: `Crosshair`,

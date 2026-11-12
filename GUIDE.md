@@ -475,6 +475,25 @@ Each change writes an `[economy]` line to the server log with your addon's
 name (pass `this`) and the reason. `Take` and `Transfer` only go ahead if
 the payer has the full amount.
 
+## Ammo
+
+```csharp
+foreach ( var gun in pawn.Hotbar.CarriedWeapons() )        // host
+{
+	if ( gun.Rounds >= gun.FullLoad ) continue;
+	pawn.Hotbar.SetCarriedAmmo( gun.Slot, gun.Ammo, gun.Reserve + gun.Weapon.MagazineSize );
+}
+```
+
+`CarriedWeapons()` lists every gun in the player's inventory, the one in
+hand and the ones put away, each with its `Slot`, `Weapon`, the rounds in
+its magazine (`Ammo`) and in reserve (`Reserve`), and `InHand`. A gun never
+drawn has a full magazine and the reserve it comes with, which is its
+`FullLoad`. `SetCarriedAmmo( slot, ammo, reserve )` changes a gun's ammo
+wherever it is; one put away is drawn with it next time. Only guns with a
+magazine are listed: a throwable's ammo is its stack in the inventory
+(`Inventory.CountOf`, `TryAdd`). Both are host calls.
+
 ## Flags on jobs and regiments
 
 Declare switches in your manifest; the server owner ticks them on jobs and
@@ -649,6 +668,47 @@ menu's sidebar after Players, with `Icon` (a Material icon name, `"science"`)
 beside its title. The help screen's classes `section-title` and `hint` work
 in a help tab. `AddonMenuTabs.Open( id )` opens the menu at your tab, from a
 key of yours or a HUD button.
+
+### Side cards: asking a player something
+
+A side card is a small card on the right of the player's screen: a title, a
+line or two, a timer, and up to two actions the player answers with the
+gamemode's **Confirm** and **Decline** keys (F3 and F4 unless they changed
+them; in the editor, whose game view takes the F-keys, U and M work too),
+without opening a menu. Cards with actions queue: only the newest holds the
+keys, on top of the stack with the keys shown on it, and one press answers
+that card alone; the next one takes the keys once it's answered or runs out.
+
+```csharp
+// Host: ask one player. The answer comes back here; no network calls of your own.
+SideCards.ShowTo( pawn, new SideCard
+{
+	Key = "trade.offer", Title = "Trade offer", Icon = "swap_horiz",
+	Text = $"{seller.DisplayName} offers a rifle\nfor 250 credits",
+	Seconds = 20f, ConfirmLabel = "Accept", DeclineLabel = "Decline",
+}, ( who, accepted ) => { if ( accepted ) Trade( seller, who ); } );
+
+// The player's own game: a card your own code keeps up to date from synced state.
+SideCards.Show( new SideCard
+{
+	Key = "flares.status", Title = "Flare lit", Text = "Burning for 60 s", Seconds = 60f,
+} );
+SideCards.Close( "flares.status" );
+```
+
+`Key` is unique on the player's screen (prefix it with your slug): showing a
+card with the same key replaces it. `Seconds` runs a timer bar down and takes
+the card away when it's up (0 keeps it until it's closed). `Accent` colours
+its edge, `Icon` is a Material Icons name and `Order` sorts the cards
+without actions under the queue (lowest first). On the player's own game a card can do more:
+`OnConfirm` and `OnDecline` run there when the keys are pressed, and a card
+with a `Body` (a function making a panel) opens up in place on Confirm,
+freeing the mouse, so the player can fill it in; Escape folds it back, and
+your panel's own buttons finish the job (`SideCards.Close` when it's done).
+`SideCards.Expand( key )` opens one from your own code (a chat command, say).
+`ShowTo` sends the card's text, timer and labels; `CloseFor( pawn, key )`
+takes it away again, and a card the player answers or lets run out is gone.
+The GWRP - Supply Drops addon asks logistics to pack a crate this way.
 
 ## Things in the world
 
@@ -927,10 +987,24 @@ chip and colour in the chat, and goes through the mute and the chat filters.
 `AddonChatChannels.Send( id, pawn, text )` speaks on it from code.
 
 A `RadioNetwork` (`Id`, `Label`, `Names`, `CanListen( pawn )`,
-`CanTalk( pawn )`) is a radio channel beside Global, the regiment's and the
-player's frequency: the radio cycles to it, `/channel <name>` picks it, and
-voice and `/r` on it work as on any channel. It's asked on every machine,
-so read synced state.
+`CanTalk( pawn )`) is a radio channel beside Global, the regiment's, the
+player's frequencies and the officers' channels: it shows in the radio
+panel and wheel (K) and on the HUD, the radio cycles to it, `/channel
+<name>` picks it, and voice and `/r` on it work as on any channel. Its
+optional `Colour` (null for the usual blue) colours it everywhere, and
+`CanMute => false` keeps players from muting it, as with Global (SDK 8).
+It's asked on every machine, so read synced state.
+
+A radio channel is a key: `RadioChannels.Global`, `"regiment:<id>"`,
+`"freq:<frequency>"`, `"ch:<id>"` for an officer's channel, or `"net:<id>"`
+for yours. `RadioChannels.Channels( pawn )` lists a player's channels in
+their order (the numbers the HUD, `/r2` and the Alt+1 to 4 keys use),
+`Listens( pawn, key )` says the channel is on their radio and `Hears( pawn,
+key )` that they haven't muted it; `Label`, `Caption`, `Colour` and
+`Describe` put a key in words. `OfficerChannels.All` lists the channels
+officers have set up (`Name`, `Tag`, `Members`, `Talkers`, `Open`, `Keep`,
+`OwnerName`); read them, the gamemode changes them. An `IChatFilter` sees a
+radio message's channel key in `Frequency`.
 
 ## Voice
 
@@ -1020,7 +1094,7 @@ default, `Everywhere`, includes it). An `IPlayerListColumn` (`Id`, `Title`,
 every row; it's asked on the viewer's game, so read synced state.
 
 An `AddonMenuTab` with `Host => AddonMenuHost.Admin` is a view in the admin
-panel (K): under `AdminGroup` ("players", "moderation", "server", or its
+panel (P): under `AdminGroup` ("players", "moderation", "server", or its
 own "addons" tab), for admins with its `Permission`. As with every panel,
 the host must check whatever the panel asks it to do.
 
